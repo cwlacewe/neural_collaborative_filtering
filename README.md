@@ -1,18 +1,20 @@
 # Neural Collaborative Filtering
 
-This is our implementation for the paper:
+This NCF implementation is based on the Authors original Keras implementation with edits to update Keras version.
+
+Original paper:
 
 Xiangnan He, Lizi Liao, Hanwang Zhang, Liqiang Nie, Xia Hu and Tat-Seng Chua (2017). [Neural Collaborative Filtering.](http://dl.acm.org/citation.cfm?id=3052569) In Proceedings of WWW '17, Perth, Australia, April 03-07, 2017.
 
 Three collaborative filtering models: Generalized Matrix Factorization (GMF), Multi-Layer Perceptron (MLP), and Neural Matrix Factorization (NeuMF). To target the models for implicit feedback and ranking task, we optimize them using log loss with negative sampling. 
 
-**Please cite our WWW'17 paper if you use our codes. Thanks!** 
+**Please cite their WWW'17 paper if you use either codes. Thanks!** 
 
 Author: Dr. Xiangnan He (http://www.comp.nus.edu.sg/~xiangnan/)
 
 ## Environment Settings
 We use Keras with Theano as the backend. 
-- Keras version:  '1.0.7'
+- Keras version:  '2.1.2'
 - Theano version: '0.8.0'
 
 ## Example to run the codes.

@@ -1,6 +1,5 @@
-# Dockerfile for building the NN topology evaluator with python3, pyTorch, BVLC caffe, tensorflow, and keras
+# Dockerfile for neural collaborative filtering with python3, keras, tensorflow, and theano
 
-# FROM ubuntu:16.04
 FROM tensorflow/tensorflow:1.7.0-devel-py3
 
 ########################################################################

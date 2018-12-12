@@ -5,17 +5,17 @@ He Xiangnan et al. Neural Collaborative Filtering. In WWW 2017.
 
 @author: Xiangnan He (xiangnanhe@gmail.com)
 '''
-import numpy as np
 
-import theano
-import theano.tensor as T
+import os
 import keras
+import numpy as np
 from keras import backend as K
-from keras import initializations
-from keras.regularizers import l1, l2, l1l2
+from keras import initializers
+from keras.regularizers import l1, l2
 from keras.models import Sequential, Model
 from keras.layers.core import Dense, Lambda, Activation
-from keras.layers import Embedding, Input, Dense, merge, Reshape, Merge, Flatten, Dropout
+from keras.layers import Embedding, Input, Dense, Reshape, Flatten, Dropout
+from keras.layers import Concatenate, Multiply
 from keras.optimizers import Adagrad, Adam, SGD, RMSprop
 from evaluate import evaluate_model
 from Dataset import Dataset
@@ -26,6 +26,17 @@ import argparse
 
 #################### Arguments ####################
 def parse_args():
+    def set_K(backend):
+        if K.backend() != backend:
+            import importlib
+            os.environ['KERAS_BACKEND'] = backend
+            print('[!] Changing Keras backend to {}'.format(backend.upper()))
+            importlib.reload(K)
+            assert K.backend() == backend
+        if K.backend() == 'theano':
+            import theano
+            import theano.tensor as T
+            
     parser = argparse.ArgumentParser(description="Run NeuMF.")
     parser.add_argument('--path', nargs='?', default='Data/',
                         help='Input data path.')
@@ -57,10 +68,13 @@ def parse_args():
                         help='Specify the pretrain model file for MF part. If empty, no pretrain will be used')
     parser.add_argument('--mlp_pretrain', nargs='?', default='',
                         help='Specify the pretrain model file for MLP part. If empty, no pretrain will be used')
-    return parser.parse_args()
-
-def init_normal(shape, name=None):
-    return initializations.normal(shape, scale=0.01, name=name)
+    parser.add_argument('--evaluate_only', action='store_true', help='Evaluate one user/item')
+    parser.add_argument('--backend', default='tensorflow', help='Choose Keras backend')
+    
+    params = parser.parse_args()
+    set_K(params.backend)
+    
+    return params
 
 def get_model(num_users, num_items, mf_dim=10, layers=[10], reg_layers=[0], reg_mf=0):
     assert len(layers) == len(reg_layers)
@@ -70,39 +84,34 @@ def get_model(num_users, num_items, mf_dim=10, layers=[10], reg_layers=[0], reg_
     item_input = Input(shape=(1,), dtype='int32', name = 'item_input')
     
     # Embedding layer
-    MF_Embedding_User = Embedding(input_dim = num_users, output_dim = mf_dim, name = 'mf_embedding_user',
-                                  init = init_normal, W_regularizer = l2(reg_mf), input_length=1)
-    MF_Embedding_Item = Embedding(input_dim = num_items, output_dim = mf_dim, name = 'mf_embedding_item',
-                                  init = init_normal, W_regularizer = l2(reg_mf), input_length=1)   
+    MF_Embedding_User = Embedding(num_users, mf_dim, name = 'mf_embedding_user', embeddings_initializer = 'random_normal', embeddings_regularizer = l2(reg_mf), input_length=1)
+    MF_Embedding_Item = Embedding(num_items, mf_dim, name = 'mf_embedding_item', embeddings_initializer = 'random_normal', embeddings_regularizer = l2(reg_mf), input_length=1)   
 
-    MLP_Embedding_User = Embedding(input_dim = num_users, output_dim = layers[0]/2, name = "mlp_embedding_user",
-                                  init = init_normal, W_regularizer = l2(reg_layers[0]), input_length=1)
-    MLP_Embedding_Item = Embedding(input_dim = num_items, output_dim = layers[0]/2, name = 'mlp_embedding_item',
-                                  init = init_normal, W_regularizer = l2(reg_layers[0]), input_length=1)   
+    MLP_Embedding_User = Embedding(num_users, int(layers[0]/2), name = "mlp_embedding_user", embeddings_initializer = 'random_normal', embeddings_regularizer = l2(reg_layers[0]), input_length=1)
+    MLP_Embedding_Item = Embedding(num_items, int(layers[0]/2), name = 'mlp_embedding_item', embeddings_initializer = 'random_normal', embeddings_regularizer = l2(reg_layers[0]), input_length=1)   
     
     # MF part
     mf_user_latent = Flatten()(MF_Embedding_User(user_input))
     mf_item_latent = Flatten()(MF_Embedding_Item(item_input))
-    mf_vector = merge([mf_user_latent, mf_item_latent], mode = 'mul') # element-wise multiply
+    mf_vector = Multiply()([mf_user_latent, mf_item_latent]) # element-wise multiply
 
     # MLP part 
     mlp_user_latent = Flatten()(MLP_Embedding_User(user_input))
     mlp_item_latent = Flatten()(MLP_Embedding_Item(item_input))
-    mlp_vector = merge([mlp_user_latent, mlp_item_latent], mode = 'concat')
-    for idx in xrange(1, num_layer):
-        layer = Dense(layers[idx], W_regularizer= l2(reg_layers[idx]), activation='relu', name="layer%d" %idx)
+    mlp_vector = Concatenate()([mlp_user_latent, mlp_item_latent])
+    for idx in range(1, num_layer):
+        layer = Dense(layers[idx], kernel_regularizer= l2(reg_layers[idx]), activation='relu', name="layer%d" %idx)
         mlp_vector = layer(mlp_vector)
 
     # Concatenate MF and MLP parts
     #mf_vector = Lambda(lambda x: x * alpha)(mf_vector)
     #mlp_vector = Lambda(lambda x : x * (1-alpha))(mlp_vector)
-    predict_vector = merge([mf_vector, mlp_vector], mode = 'concat')
+    predict_vector = Concatenate()([mf_vector, mlp_vector])
     
     # Final prediction layer
-    prediction = Dense(1, activation='sigmoid', init='lecun_uniform', name = "prediction")(predict_vector)
+    prediction = Dense(1, activation='sigmoid', kernel_initializer='lecun_uniform', name = "prediction")(predict_vector)
     
-    model = Model(input=[user_input, item_input], 
-                  output=prediction)
+    model = Model(inputs=[user_input, item_input], outputs=prediction)
     
     return model
 
@@ -120,7 +129,7 @@ def load_pretrain_model(model, gmf_model, mlp_model, num_layers):
     model.get_layer('mlp_embedding_item').set_weights(mlp_item_embeddings)
     
     # MLP layers
-    for i in xrange(1, num_layers):
+    for i in range(1, num_layers):
         mlp_layer_weights = mlp_model.get_layer('layer%d' %i).get_weights()
         model.get_layer('layer%d' %i).set_weights(mlp_layer_weights)
         
@@ -141,9 +150,9 @@ def get_train_instances(train, num_negatives):
         item_input.append(i)
         labels.append(1)
         # negative instances
-        for t in xrange(num_negatives):
+        for t in range(num_negatives):
             j = np.random.randint(num_items)
-            while train.has_key((u, j)):
+            while (u, j) in train:  # while train.has_key((u, j)):
                 j = np.random.randint(num_items)
             user_input.append(u)
             item_input.append(j)
@@ -164,11 +173,13 @@ if __name__ == '__main__':
     verbose = args.verbose
     mf_pretrain = args.mf_pretrain
     mlp_pretrain = args.mlp_pretrain
+    evaluate_only = args.evaluate_only
             
     topK = 10
     evaluation_threads = 1#mp.cpu_count()
     print("NeuMF arguments: %s " %(args))
     model_out_file = 'Pretrain/%s_NeuMF_%d_%s_%d.h5' %(args.dataset, mf_dim, args.layers, time())
+    model_out_file_all = model_out_file.split('.h5')[0] + '_Model.h5'
 
     # Loading data
     t1 = time()
@@ -197,7 +208,34 @@ if __name__ == '__main__':
         mlp_model.load_weights(mlp_pretrain)
         model = load_pretrain_model(model, gmf_model, mlp_model, len(layers))
         print("Load pretrained GMF (%s) and MLP (%s) models done. " %(mf_pretrain, mlp_pretrain))
+    
+    if evaluate_only:
+        idx = 50  # TODO: Add param for chosen index
+        _K = topK
+        rating = testRatings[idx]
+        items = testNegatives[idx]
+        u = rating[0]
+        gtItem = rating[1]
+        items.append(gtItem)
+        # Get prediction scores
+        map_item_score = {}
+        users = np.full(len(items), u, dtype = 'int32')
+        input_data = [users, np.array(items)]
+        predictions = model.predict(input_data, batch_size=100, verbose=0)
         
+        for i in range(len(items)):
+            item = items[i]
+            map_item_score[item] = predictions[i]
+        items.pop()        
+        # Evaluate top rank list
+        import heapq
+        from evaluate import eval_one_rating, getHitRatio, getNDCG
+        ranklist = heapq.nlargest(_K, map_item_score, key=map_item_score.get)
+        hr = getHitRatio(ranklist, gtItem)
+        ndcg = getNDCG(ranklist, gtItem)
+        print('One eval: HR = %.4f, NDCG = %.4f' % (hr, ndcg))
+        sys.exit(0)
+    
     # Init performance
     (hits, ndcgs) = evaluate_model(model, testRatings, testNegatives, topK, evaluation_threads)
     hr, ndcg = np.array(hits).mean(), np.array(ndcgs).mean()
@@ -205,9 +243,10 @@ if __name__ == '__main__':
     best_hr, best_ndcg, best_iter = hr, ndcg, -1
     if args.out > 0:
         model.save_weights(model_out_file, overwrite=True) 
+        model.save(model_out_file_all)
         
     # Training model
-    for epoch in xrange(num_epochs):
+    for epoch in range(num_epochs):
         t1 = time()
         # Generate training instances
         user_input, item_input, labels = get_train_instances(train, num_negatives)
@@ -215,7 +254,7 @@ if __name__ == '__main__':
         # Training
         hist = model.fit([np.array(user_input), np.array(item_input)], #input
                          np.array(labels), # labels 
-                         batch_size=batch_size, nb_epoch=1, verbose=0, shuffle=True)
+                         batch_size=batch_size, epochs=1, verbose=0, shuffle=True)
         t2 = time()
         
         # Evaluation
@@ -228,6 +267,7 @@ if __name__ == '__main__':
                 best_hr, best_ndcg, best_iter = hr, ndcg, epoch
                 if args.out > 0:
                     model.save_weights(model_out_file, overwrite=True)
+                    model.save(model_out_file_all)
 
     print("End. Best Iteration %d:  HR = %.4f, NDCG = %.4f. " %(best_iter, best_hr, best_ndcg))
     if args.out > 0:

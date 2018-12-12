@@ -13,9 +13,11 @@ Three collaborative filtering models: Generalized Matrix Factorization (GMF), Mu
 Author: Dr. Xiangnan He (http://www.comp.nus.edu.sg/~xiangnan/)
 
 ## Environment Settings
-We use Keras with Theano as the backend. 
-- Keras version:  '2.1.2'
-- Theano version: '0.8.0'
+We use the following setting:
+- Python version: '3.5.2' 
+- Keras version:  '2.2.4'
+- Tensorflow backend version: '1.7.0'
+- Theano backend version: '1.0.3'
 
 ## Example to run the codes.
 The instruction of commands has been clearly stated in the codes (see the  parse_args function). 
@@ -37,7 +39,7 @@ python NeuMF.py --dataset ml-1m --epochs 20 --batch_size 256 --num_factors 8 --l
 
 Run NeuMF (with pre-training):
 ```
-python NeuMF.py --dataset ml-1m --epochs 20 --batch_size 256 --num_factors 8 --layers [64,32,16,8] --num_neg 4 --lr 0.001 --learner adam --verbose 1 --out 1 --mf_pretrain Pretrain/ml-1m_GMF_8_1501651698.h5 --mlp_pretrain Pretrain/ml-1m_MLP_[64,32,16,8]_1501652038.h5
+python NeuMF.py --dataset ml-1m --epochs 20 --batch_size 256 --num_factors 8 --layers [64,32,16,8] --num_neg 4 --lr 0.001 --learner adam --verbose 1 --out 1 --mf_pretrain Pretrain/ml-1m_GMF_8_1544511269.h5 --mlp_pretrain Pretrain/ml-1m_MLP_[64,32,16,8]_1544512120.h5
 ```
 
 Note on tuning NeuMF: our experience is that for small predictive factors, running NeuMF without pre-training can achieve better performance than GMF and MLP. For large predictive factors, pre-training NeuMF can yield better performance (may need tune regularization for GMF and MLP). 

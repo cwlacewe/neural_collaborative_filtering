@@ -1,0 +1,87 @@
+# Dockerfile for building the NN topology evaluator with python3, pyTorch, BVLC caffe, tensorflow, and keras
+
+# FROM ubuntu:16.04
+FROM tensorflow/tensorflow:1.7.0-devel-py3
+
+########################################################################
+##   Other Necessities 
+########################################################################   
+ARG DEFAULT_WORKDIR=/workspace
+
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
+    autoconf \
+    automake \
+    bc \
+    bsdmainutils \
+    build-essential \
+    cmake \
+    curl \
+    g++ \
+    git \
+    graphviz \
+    less \
+    libatlas-base-dev \
+    libblas-dev \
+    libboost-all-dev \
+    libgflags-dev \
+    libgoogle-glog-dev \
+    libhdf5-serial-dev \
+    libleveldb-dev \
+    liblmdb-dev \
+    libopencv-dev \
+    libprotobuf-dev \
+    libsnappy-dev \
+    libtool \
+    locate \
+    nano \
+    ocl-icd-opencl-dev:amd64 \
+    pkg-config \
+    protobuf-compiler \
+    python3-dev \
+    python3-tk \
+    rsync \
+    sudo \
+    unzip \
+    vim \
+    wget;
+    
+RUN rm -rf /var/lib/apt/lists/*;
+
+RUN curl -O https://bootstrap.pypa.io/get-pip.py && \
+    python3 get-pip.py && \
+    rm get-pip.py
+    
+RUN pip3 install \
+    easydict \
+    git+https://github.com/pytorch/text \
+    git+https://github.com/szagoruyko/pytorchviz \
+    h5py \
+    ipdb \
+    keras==2.2.4 \
+    matplotlib \
+    numpy \
+    protobuf \
+    psutil \
+    pydot==1.2.4 \
+    pydot-ng \
+    pydotplus \
+    python-dateutil \
+    pyyaml \
+    scikit-image \
+    scikit-learn \
+    scipy \
+    sklearn \
+    tabulate \                    
+    text-unidecode \
+    theano==1.0.3 \ 
+    torch==0.4.0 \
+    torchvision==0.2.1 \
+    tqdm==4.15.0 \
+    visdom>=0.1.8.3
+
+# Prepare the environment
+RUN mkdir -p $DEFAULT_WORKDIR
+ENV PATH ${PATH}:/usr/local/binma
+ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/usr/local/lib
+
+WORKDIR /home
